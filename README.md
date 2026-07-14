@@ -111,7 +111,6 @@ The following evaluation metrics are used:
 - Geometric Mean (**G-mean**)
 
 The Scott–Knott ESD test is also used to statistically compare different defect prediction methods.
-
 ## Repository Structure
 
 The complete repository is expected to contain the following structure:
@@ -131,3 +130,7 @@ MVCHA-DP/
 ├── scripts/                 # Training and evaluation scripts
 ├── requirements.txt         # Python dependencies
 └── README.md
+```
+## Status
+
+> **Note:** The complete code for this paper is still being organized and will be uploaded soon.
