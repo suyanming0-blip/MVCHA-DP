@@ -1,136 +1,52 @@
 # MVCHA-DP
 
-Official implementation of **MVCHA-DP**, an adaptive multi-view hypergraph representation learning framework for multi-scenario software defect prediction.
+Code for **Adaptive Multi-View Hypergraph Representation Learning for Multi-Scenario Software Defect Prediction**.
 
-This repository accompanies the paper:
+MVCHA-DP combines multi-view code features with adaptive hypergraph learning to model relationships among software modules. It supports within-project (WPDP), cross-version (CVDP), and cross-project (CPDP) defect prediction, with domain adaptation for the cross-domain scenarios.
 
-> **Adaptive Multi-View Hypergraph Representation Learning for Multi-Scenario Software Defect Prediction**
+## Installation
 
-## Overview
+Use Python 3.10 and an NVIDIA GPU with CUDA support. The implementation uses PyTorch 1.12.1 with CUDA 11.6. Install the dependencies from the repository directory:
 
-Software modules often exhibit complex dependencies and high-order collaborative relationships. However, existing hypergraph-based software defect prediction methods commonly rely on fixed neighborhood sizes, which may not adequately capture heterogeneous local structures. Moreover, distribution discrepancies across software versions and projects can reduce the transferability of learned representations.
+```bash
+python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu116
+```
 
-MVCHA-DP addresses these challenges through adaptive multi-view hypergraph representation learning. It integrates multiple code feature views with learned node-importance priors and dynamically constructs hyperedges according to structural similarity, node importance, and local neighborhood characteristics.
+## Running experiments
 
-The framework supports three representative software defect prediction scenarios:
+From the repository directory, start the full experiment:
 
-- **WPDP:** Within-Project Defect Prediction
-- **CVDP:** Cross-Version Defect Prediction
-- **CPDP:** Cross-Project Defect Prediction
+```bash
+python main.py
+```
 
-For WPDP, MVCHA-DP is mainly optimized through supervised classification. For CVDP and CPDP, cross-domain adaptation is additionally introduced to reduce distribution discrepancies between the source and target domains.
+The program runs all three scenarios sequentially with 20 random seeds (321–340).
 
-## Framework
+| Scenario | Tasks | Trainings per task | Total trainings |
+|---|---:|---:|---:|
+| WPDP | 70 | 100 | 7,000 |
+| CVDP | 62 | 20 | 1,240 |
+| CPDP | 192 | 20 | 3,840 |
+| Total | 324 | | 12,080 |
 
-The MVCHA-DP framework mainly consists of the following components:
+WPDP uses stratified five-fold evaluation for each seed: three folds for training, one for validation, and one for testing. For test fold `i`, validation uses fold `(i+1)%5`. Each fold trains independently.
 
-1. Multi-view code feature generation
-2. Node-importance computation
-3. Adaptive multi-view hypergraph construction
-4. Multi-view hypergraph fusion
-5. Hypergraph convolutional representation learning
-6. Scenario-specific optimization
-7. Software defect classification
+CVDP and CPDP retain the source training/validation split across seeds and evaluate on the complete target project. Neural training and the final readout use the same seed. Validation selects the checkpoint before test evaluation.
 
-## Multi-View Code Features
+## Results
 
-MVCHA-DP uses three complementary feature views to represent software modules:
-
-- **Traditional Static Metrics (TSM):** Code size, complexity, coupling, and object-oriented design metrics
-- **Complex Network Metrics (CNM):** Structural indicators extracted from software dependency networks
-- **Network Embedding Metrics (NEM):** Low-dimensional structural representations learned from dependency networks
-
-These features are normalized and integrated to provide a comprehensive representation of each software module.
-
-## Adaptive Hypergraph Construction
-
-MVCHA-DP constructs adaptive hypergraphs by jointly considering:
-
-- Structural similarity between software modules
-- Learned node-importance priors
-- Dynamic neighborhood selection
-- Local similarity distributions
-- Multi-view high-order relationships
-
-Unlike fixed-neighborhood hypergraph construction, MVCHA-DP assigns different neighborhood sizes to different nodes according to their local structural characteristics.
-
-The view-specific hypergraphs are subsequently fused and processed by a hypergraph convolutional network to learn high-order defect representations.
-
-## Cross-Domain Adaptation
-
-For CVDP and CPDP, MVCHA-DP incorporates a cross-domain adaptation mechanism consisting of:
-
-- Adversarial domain alignment
-- Gradient reversal learning
-- Dual-classifier discrepancy regularization
-- Source-domain supervised classification
-- Target-domain boundary consistency learning
-
-These components reduce representation discrepancies between source and target domains and improve prediction transferability across software versions and projects.
-
-## Dataset
-
-The experiments are conducted on multiple open-source Java projects from the **PROMISE software defect prediction benchmark dataset**.
-
-The evaluated projects include:
-
-- Ant
-- Camel
-- Ivy
-- JEdit
-- Log4j
-- Lucene
-- POI
-- Velocity
-- Xalan
-- Xerces
-
-Each project contains one or more software versions with file-level defect labels.
-
-## Evaluation Scenarios
-
-### Within-Project Defect Prediction
-
-In WPDP, the training and testing samples are obtained from the same software project version. Five-fold cross-validation is used to evaluate the within-project prediction performance.
-
-### Cross-Version Defect Prediction
-
-In CVDP, an earlier version of a software project is used as the source domain, while a later version of the same project is used as the target domain.
-
-### Cross-Project Defect Prediction
-
-In CPDP, the source and target domains are obtained from different software projects.
-
-## Evaluation Metrics
-
-The following evaluation metrics are used:
-
-- Area Under the ROC Curve (**AUC**)
-- **F-measure**
-- Matthews Correlation Coefficient (**MCC**)
-- Geometric Mean (**G-mean**)
-
-The Scott–Knott ESD test is also used to statistically compare different defect prediction methods.
-## Repository Structure
-
-The complete repository is expected to contain the following structure:
+Each invocation creates a new timestamped directory:
 
 ```text
-MVCHA-DP/
-├── configs/                 # Experiment configuration files
-├── data/                    # Dataset preparation instructions
-├── preprocessing/           # Feature extraction and preprocessing
-├── models/                  # Model implementations
-│   ├── hypergraph.py
-│   ├── node_importance.py
-│   ├── domain_adaptation.py
-│   └── classifier.py
-├── experiments/             # WPDP, CVDP, and CPDP experiments
-├── utils/                   # Evaluation and utility functions
-├── scripts/                 # Training and evaluation scripts
-├── requirements.txt         # Python dependencies
-└── README.md
+results/full_<timestamp>/
+├── plan/
+└── results/
+    ├── summary.json
+    ├── progress.jsonl
+    ├── logs/
+    └── runs/
 ```
-## Status
 
-> **Note:** The complete code for this paper is still being organized and will be uploaded soon.
+`summary.json` reports aggregate AUC, F1, and MCC. WPDP metrics are averaged over five folds within each task and seed. Tasks receive equal weight within each scenario, and the final summary reports the mean and standard deviation over the 20 seed means.
+
+Individual metrics and selected model snapshots are saved under `runs/`. `progress.jsonl` records completed runs, and `logs/` contains their output.
