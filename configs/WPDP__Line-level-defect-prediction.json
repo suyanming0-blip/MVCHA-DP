@@ -40,18 +40,10 @@
   "enable_mcd": false,
   "alpha": 0.7,
   "high_similarity_tail_fraction": 0.2,
-  "fixed_k": 5,
-  "k_values": [
-    4,
-    5,
-    6
-  ],
   "tau1": 0.2,
   "tau2": 0.5,
   "cls_hidden_dim": 32,
   "cls_dropout": 0.0,
-  "lambda_domain": 0.6,
-  "lambda_discrepancy": 0.4,
   "kappa": [
     4,
     5,
@@ -61,7 +53,5 @@
   "model_version": "MVCHA_DP_MVHR_PARITY_V2_2",
   "importance_math_version": "V2.1",
   "feature_order": "TNC",
-  "scenario": "WPDP",
-  "domain_hidden_dim": 64,
-  "domain_dropout": 0.5
+  "scenario": "WPDP"
 }

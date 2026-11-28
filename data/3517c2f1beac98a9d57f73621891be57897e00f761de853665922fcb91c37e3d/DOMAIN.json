@@ -89,19 +89,8 @@
         "vector_30",
         "vector_31"
       ]
-    },
-    "loader": "PROCESSED_CANONICAL",
-    "direction_policy": {
-      "policy_id": "CURRENT_SPEC_2026_09_26_A_REC",
-      "dataset_family": "Line-level-defect-prediction",
-      "dependency_directed": true,
-      "a_rec": "DIRECTED",
-      "provenance": "verified directed reconstruction provenance",
-      "a_mp_h_dep": "unchanged frozen model semantics"
-    },
-    "labels_read": false
+    }
   },
-  "identity_note": "upstream data/node_order hashes identify source provenance; package SHA identifies exported bytes",
   "anonymous_node_order": [
     "n000000",
     "n000001",

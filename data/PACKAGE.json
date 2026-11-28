@@ -281,10 +281,5 @@
       "domain": "SOUND/zookeeper-3.5.3_ground-truth-files_dataset",
       "folder": "48122055dc9a6921b318140602cbf8e094ffcd9e3d7027b6da88ac3d4cbee0df"
     }
-  ],
-  "contains_raw_csv": false,
-  "contains_FQN_mapping": false,
-  "contains_source_code": false,
-  "contains_inverse_scaler": false,
-  "upstream_identity_is_provenance": true
+  ]
 }

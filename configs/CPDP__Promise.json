@@ -8,7 +8,6 @@
   "gamma": 0.9,
   "drop_out": 0.5,
   "weight_decay": 0.0005,
-  "encoder": 32,
   "use_node_importance": true,
   "importance_mode": "paper_v2",
   "importance_v2": {
@@ -40,12 +39,6 @@
   "enable_domain_adaptation": true,
   "enable_mcd": true,
   "alpha": 0.7,
-  "fixed_k": 5,
-  "k_values": [
-    4,
-    5,
-    6
-  ],
   "tau1": 0.2,
   "tau2": 0.5,
   "cls_hidden_dim": 32,
