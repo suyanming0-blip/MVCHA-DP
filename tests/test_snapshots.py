@@ -18,7 +18,7 @@ class SnapshotTests(unittest.TestCase):
                 store = SimpleNamespace(folder=lambda task: Path(folder))
                 with patch('mvcha_dp.training.candidate_cache.CandidateCache', side_effect=lambda: CandidateCache(budget)):
                     snapshots = Snapshots(store, 'task')
-                scope = Scope('MVCHA_DP_REPEATED20', 'WPDP', 'Promise', 'task', 'inner_validation', seed=322)
+                scope = Scope('WPDP', 'Promise', 'task', 'inner_validation', seed=322)
                 history, originals = [], {}
                 for epoch in range(7):
                     auc = .8 if epoch < 5 else .802 if epoch == 5 else .8021

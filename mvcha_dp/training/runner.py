@@ -37,32 +37,30 @@ def load_task(package_path, task_id):
 
 
 class Trainer:
-    def __init__(self, package_path, task_id, output, *, repeat_context=None):
+    def __init__(self, package_path, task_id, output, *, repeat_context):
         require(torch.cuda.is_available(), 'CUDA is required')
         require(
             os.environ.get('CUBLAS_WORKSPACE_CONFIG') == ':4096:8',
             'Expected CUBLAS_WORKSPACE_CONFIG=:4096:8'
         )
         torch.use_deterministic_algorithms(True)
-        self.seed = 321 if repeat_context is None else repeat_context['seed']
+        self.seed = repeat_context['seed']
         require(
-            type(self.seed) is int and (self.seed == 321 if repeat_context is None else self.seed in range(321, 341)),
+            type(self.seed) is int and self.seed in range(321, 341),
             'Invalid run seed'
         )
         set_seed(self.seed)
         self.task, self.split = load_task(package_path, task_id)
-        if repeat_context is not None:
-            require(
-                repeat_context['task_id'] == task_id and repeat_context['profile'] == 'repeated20',
-                'Wrong repeated run context'
-            )
-            self.split = repeat_context['split']
+        require(
+            repeat_context['task_id'] == task_id and repeat_context['profile'] == 'repeated20',
+            'Wrong repeated run context'
+        )
+        self.split = repeat_context['split']
         self.output = Path(output).resolve()
         self.output.mkdir(parents=True, exist_ok=False)
         cfg_path = Path(__file__).resolve().parents[2] / 'configs' / (self.task['scenario'] + '__' + self.task['dataset_family'] + '.json')
         self.cfg = json.loads(cfg_path.read_text(encoding='utf8'))
-        if repeat_context is not None:
-            self.cfg['seed'] = self.seed
+        self.cfg['seed'] = self.seed
         pack = NumericPackage(package_path)
         clear()
         self.source, sims = pack.load(self.task['source'])
@@ -76,12 +74,10 @@ class Trainer:
         self.ytrain = self.labels.read('train')
         self.yval = self.labels.read('validation')
         require(set(np.unique(self.ytrain)) == {0, 1} and set(np.unique(self.yval)) == {0, 1}, 'SPLIT_CLASS_INVALID')
-        protocol = 'MVCHA_DP_V2_2_REVIEW' if repeat_context is None else 'MVCHA_DP_REPEATED20'
-        self.scope = Scope(protocol, self.task['scenario'], self.task['dataset_family'], task_id,
+        self.scope = Scope(self.task['scenario'], self.task['dataset_family'], task_id,
                            self.split['roles']['validation'], seed=self.seed)
         self.execution = dict(task_id=task_id, seed=self.seed)
-        if repeat_context is not None:
-            self.execution.update(profile='repeated20', run_id=repeat_context['run_id'], fold=repeat_context['fold'])
+        self.execution.update(profile='repeated20', run_id=repeat_context['run_id'], fold=repeat_context['fold'])
 
 
     def folder(self, task_id):
@@ -110,7 +106,7 @@ class Trainer:
         latest, selected_epoch, last_state = None, None, None
         snapshots = Snapshots(self, self.task['task_id'])
 
-        def boundary(model, cp, optimizers, schedulers, history, stale=0):
+        def boundary(model, cp, optimizers, schedulers, history):
             nonlocal latest, selected_epoch, last_state
             full = cp
             epoch = full['epoch']

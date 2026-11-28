@@ -1,14 +1,9 @@
-VERSION = 'MVCHA_DP_MVHR_PARITY_V2_2'
-SCHEMA = 2
+VERSION = 'MVCHA_DP_V2_2'
 PROFILES = {'WPDP': 64, 'CVDP': 128, 'CPDP': 64}
 
 
-def is_parity(cfg):
-    return cfg.get('model_version') == VERSION
-
-
 def validate(cfg):
-    if not is_parity(cfg):
+    if cfg.get('model_version') != VERSION:
         raise ValueError('Unsupported model version')
     scenario = cfg.get('scenario')
     if scenario not in PROFILES:
@@ -22,6 +17,8 @@ def validate(cfg):
         raise ValueError('Expected max_epoch=200')
     if cfg.get('cls_hidden_dim') != 32 or cfg.get('cls_dropout') != 0:
         raise ValueError('Expected cls_hidden_dim=32 and cls_dropout=0')
+    if not cfg.get('use_node_importance') or not cfg.get('use_dynamic_k'):
+        raise ValueError('Node importance and dynamic K are required')
     if scenario != 'WPDP' and (not cfg.get('enable_domain_adaptation') or not cfg.get('enable_mcd')):
         raise ValueError('Domain adaptation or MCD is disabled')
     return scenario

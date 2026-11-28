@@ -1,8 +1,7 @@
 from contextlib import contextmanager
-import torch
 
 
-def capture_checkpoint(model, epoch, score, **graphs):
+def capture_checkpoint(model, epoch, **graphs):
     return {
         'epoch': int(epoch),
         'model': {k: v.detach().cpu().clone() for k, v in model.state_dict().items()},

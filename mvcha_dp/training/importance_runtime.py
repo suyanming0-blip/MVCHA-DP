@@ -1,7 +1,6 @@
 # Node importance updates and hypergraph synchronization.
 
 import copy
-import numpy as np
 import torch
 from mvcha_dp.models.importance import DependencyGraph, V2NodeImportanceModel, compute_v2_self_supervised_loss
 from mvcha_dp.graph.adaptive import build_mvcha_hypergraph
@@ -36,10 +35,6 @@ def importance_mode(cfg):
     return 'paper_v2'
 
 
-def uses_v2(cfg):
-    return importance_mode(cfg) == 'paper_v2'
-
-
 def effective_v2_config(cfg):
     importance_mode(cfg)
     return dict(DEFAULTS, **cfg.get('importance_v2', {}))
@@ -52,7 +47,6 @@ def parameter_bytes(model):
 class V2ImportanceRuntime:
 
     def __init__(self, X, edges, cfg, device, role='source', identifier='', fold_id=0, node_order=None):
-        self.mode = importance_mode(cfg)
         self.config = effective_v2_config(cfg)
         if set(self.config) != set(DEFAULTS):
             raise ValueError('Unknown importance_v2 setting')
@@ -86,8 +80,6 @@ class V2ImportanceRuntime:
             node_order=self.node_order,
             positive_pair_count=len(self.graph.positive_pairs)
         )
-        if self.mode != 'paper_v2':
-            self.metadata['importance_mode'] = self.mode
         with torch.random.fork_rng(devices=[]):
             torch.random.default_generator.manual_seed(self.seed)
             self.model = V2NodeImportanceModel(
@@ -101,18 +93,10 @@ class V2ImportanceRuntime:
         self.sampling_generator = torch.Generator().manual_seed(self.seed)
         self.current_step = 0
         (self.sync_history, self.step_history) = ([], [])
-        self.previous_p = None
-        from mvcha_dp.protocol.contract import is_parity
-        self.parity = is_parity(cfg)
+        from mvcha_dp.graph.fusion import DependencyTemplate
         self.fusion = None
-        self.dependency_template = None
-        if self.parity:
-            from mvcha_dp.graph.fusion import DependencyTemplate
-            self.dependency_template = DependencyTemplate(len(self.X), edges)
-            self.metadata.update(
-                model_version=cfg['model_version'],
-                feature_order='TNC'
-            )
+        self.dependency_template = DependencyTemplate(len(self.X), edges)
+        self.metadata.update(model_version=cfg['model_version'], feature_order='TNC')
         self.has_valid_ranking_update = False
         self.warmup_completed = False
         self.warmup_history = []
@@ -146,7 +130,7 @@ class V2ImportanceRuntime:
     def warmup(self):
         if self.warmup_completed:
             return
-        count = self.config['reconstruction_warmup_steps'] if self.mode != 'frozen_random_importance' else 0
+        count = self.config['reconstruction_warmup_steps']
         for step in range(count):
             self.model.train()
             self.optimizer.zero_grad(set_to_none=True)
@@ -207,7 +191,7 @@ class V2ImportanceRuntime:
         return record
 
 
-    def synchronize(self, epoch, views, edges, cfg, previous_H=None):
+    def synchronize(self, epoch, views, edges, cfg):
         self.warmup()
         if epoch != self.current_step or epoch % cfg.get('update_interval', 5):
             raise ValueError('Invalid hypergraph synchronization epoch')
@@ -216,11 +200,10 @@ class V2ImportanceRuntime:
         (scores, p) = self.compute_p()
         named = dict(zip(('TSM', 'CNM', 'NEM'), views))
         graph = build_mvcha_hypergraph(
-            named if self.parity else views,
+            named,
             self.X,
             edges,
             cfg,
-            self.X.device,
             precomputed_importance=p.detach(),
             dependency_template=self.dependency_template
         )
@@ -230,14 +213,8 @@ class V2ImportanceRuntime:
         self.sync_history.append(dict(epoch=int(epoch), p=p.detach().cpu().tolist()))
         return (H, W)
 
-    def get_sampling_state(self):
-        return self.sampling_generator.get_state().clone()
-
-
 
 def create_runtime(X, view_data, cfg, device, role='source'):
-    if not uses_v2(cfg):
-        return None
     if not cfg.get('enable_periodic_update', False) or cfg.get('update_interval', 5) != 5:
         raise ValueError('Expected periodic graph updates every 5 epochs')
     if not cfg.get('use_node_importance', True):
@@ -259,6 +236,6 @@ def create_runtime(X, view_data, cfg, device, role='source'):
 def begin_importance_epoch(runtime, epoch, H, W, view_data, cfg):
     if epoch % cfg.get('update_interval', 5) == 0:
         views = [view_data.get(k) for k in ('X_origin', 'X_metric', 'X_vector')]
-        (H, W) = runtime.synchronize(epoch, views, view_data['E'], cfg, H)
+        (H, W) = runtime.synchronize(epoch, views, view_data['E'], cfg)
     record = runtime.self_supervised_step(epoch)
     return (H, W, record)

@@ -53,7 +53,7 @@
   ],
   "seed": 321,
   "high_similarity_tail_fraction": 0.2,
-  "model_version": "MVCHA_DP_MVHR_PARITY_V2_2",
+  "model_version": "MVCHA_DP_V2_2",
   "importance_math_version": "V2.1",
   "feature_order": "TNC",
   "scenario": "CPDP",

@@ -12,8 +12,8 @@ class MVCHADP(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.n_hid = n_hid
-        from mvcha_dp.protocol.contract import is_parity, validate
-        profile = validate(cfg) if is_parity(cfg) else None
+        from mvcha_dp.protocol.contract import validate
+        profile = validate(cfg)
         if profile == 'WPDP':
             raise ValueError('Invalid WPDP model class')
         self.hgnn = HGNN(in_dim, n_hid, dropout, profile=profile)

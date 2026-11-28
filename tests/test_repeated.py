@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import torch
 
-from mvcha_dp.protocol.repeated import make_wpdp_splits, make_cross_split, distribution, recipe, summarize, write
+from mvcha_dp.protocol.repeated import make_wpdp_splits, make_cross_split, distribution, recipe, summarize
 from mvcha_dp.protocol.selection import Scope
 from mvcha_dp.evaluation.readout import isolated_readout_rng
 
@@ -49,15 +49,12 @@ class RepeatedTests(unittest.TestCase):
             self.assertEqual(s['seed'], seed)
             self.assertEqual(s['split_seed'], 321)
 
-    def test_scope_seed_is_profile_bound(self):
+    def test_scope_seed_range(self):
         values = ('WPDP', 'Promise', 'x', 'inner_validation')
-        Scope('MVCHA_DP_V2_2_REVIEW', *values).validate()
-        with self.assertRaises(ValueError):
-            Scope('MVCHA_DP_V2_2_REVIEW', *values, seed=322).validate()
         for seed in recipe()['seeds']:
-            Scope('MVCHA_DP_REPEATED20', *values, seed=seed).validate()
+            Scope(*values, seed=seed).validate()
         with self.assertRaises(ValueError):
-            Scope('MVCHA_DP_REPEATED20', *values, seed=341).validate()
+            Scope(*values, seed=341).validate()
 
     def test_readout_rng_restores_streams(self):
         with patch('torch.cuda.is_initialized', return_value=False):

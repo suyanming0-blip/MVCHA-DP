@@ -29,9 +29,11 @@ class WeightedHypergraphConv(nn.Module):
 
 class HGNN(nn.Module):
 
-    def __init__(self, in_ch, n_hid, dropout=0.5, profile=None):
+    def __init__(self, in_ch, n_hid, dropout=0.5, *, profile):
         super(HGNN, self).__init__()
         self.dropout = dropout
+        if profile not in ('WPDP', 'CVDP', 'CPDP'):
+            raise ValueError('Unknown encoder profile')
         self.profile = profile
         self.hgc1 = WeightedHypergraphConv(in_ch, n_hid)
         self.hgc2 = None if profile == 'WPDP' else WeightedHypergraphConv(n_hid, n_hid)
@@ -43,10 +45,7 @@ class HGNN(nn.Module):
         x = F.dropout(x, self.dropout, training=self.training)
         if self.profile == 'WPDP':
             return x
-        if self.profile in ('CVDP', 'CPDP'):
-            return self.hgc2(x, H, W)
-        x = F.relu(self.hgc2(x, H, W))
-        return F.dropout(x, self.dropout, training=self.training)
+        return self.hgc2(x, H, W)
 
     def encoder_parameters(self):
         return list(self.hgc1.parameters()) + ([] if self.hgc2 is None else list(self.hgc2.parameters()))

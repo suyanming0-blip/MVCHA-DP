@@ -15,13 +15,9 @@ class Snapshots:
         self.path.mkdir()
         self.saved = []
         self.pruned = []
-        self.backend = 'compact'
-        require(self.backend in ('disk', 'compact'), 'Unknown candidate storage backend')
-        self.cache = None
-        if self.backend == 'compact':
-            from .candidate_cache import CandidateCache
-            self.cache = CandidateCache()
-        self.storage_stats = dict(backend=self.backend, durable_writes=0, durable_bytes=0)
+        from .candidate_cache import CandidateCache
+        self.cache = CandidateCache()
+        self.storage_stats = dict(backend='compact', durable_writes=0, durable_bytes=0)
 
     def file(self, epoch):
         require(type(epoch) is int and 0 <= epoch < 200, 'Invalid epoch')
@@ -36,23 +32,17 @@ class Snapshots:
         peak = max((r.auc for r in history))
         eligible = {r.epoch for r in history if r.auc >= peak - AUC_TOLERANCE}
         require(selected_checkpoint(history).epoch in eligible, 'Selector/retention mismatch')
-        if self.cache is not None:
-            self.cache.prune(eligible)
-            self._prune_files(eligible)
-            if epoch in eligible:
-                state = full
-                if not self.cache.retain(state):
-                    self._write(state)
-            else:
-                self.cache.stats['skipped_ineligible'] += 1
-            self.saved.append(epoch)
-            chosen = selected_checkpoint(history).epoch
-            require(chosen in self.cache.candidates or self.file(chosen).is_file(), 'Selected candidate missing')
-            return
-        state = full
-        self._write(state)
-        self.saved.append(epoch)
+        self.cache.prune(eligible)
         self._prune_files(eligible)
+        if epoch in eligible:
+            state = full
+            if not self.cache.retain(state):
+                self._write(state)
+        else:
+            self.cache.stats['skipped_ineligible'] += 1
+        self.saved.append(epoch)
+        chosen = selected_checkpoint(history).epoch
+        require(chosen in self.cache.candidates or self.file(chosen).is_file(), 'Selected candidate missing')
 
     def _write(self, state):
         epoch = state['epoch']
@@ -85,7 +75,7 @@ class Snapshots:
                 self.pruned.append(i)
 
     def restore(self, epoch):
-        if self.cache is not None and epoch in self.cache.candidates:
+        if epoch in self.cache.candidates:
             state = self.cache.get(epoch)
             if not self.file(epoch).exists():
                 self._write(state)

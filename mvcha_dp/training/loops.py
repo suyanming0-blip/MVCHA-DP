@@ -14,7 +14,7 @@ from mvcha_dp.training.state import capture_checkpoint
 
 def guard(cfg, device):
     validate(cfg)
-    if torch.device(device).type != 'cuda' and (not cfg.get('mechanism_test_only', False)):
+    if torch.device(device).type != 'cuda':
         raise RuntimeError('CUDA is required')
     if cfg.get('importance_mode') != 'paper_v2':
         raise ValueError('Expected importance_mode=paper_v2')
@@ -56,9 +56,8 @@ def train_wpdp(X, y_train, train_index, y_val, val_index, cfg, device, view_data
     opt = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     scheduler = torch.optim.lr_scheduler.MultiStepLR(opt, cfg['milestones'], cfg['gamma'])
     history = []
-    start = 0
     H = W = None
-    for epoch in range(start, cfg['max_epoch']):
+    for epoch in range(cfg['max_epoch']):
         (H, W, _) = begin_importance_epoch(runtime, epoch, H, W, view_data, cfg)
         model.train()
         opt.zero_grad(set_to_none=True)
@@ -79,10 +78,10 @@ def train_wpdp(X, y_train, train_index, y_val, val_index, cfg, device, view_data
         ))
         scheduler.step()
         model.stage = 'neural_complete' if epoch == cfg['max_epoch'] - 1 else 'neural_training'
-        cp = on_epoch(model, capture_checkpoint(model, epoch, vf, source=(H, W)), {'main': opt}, [scheduler], history)
+        cp = on_epoch(model, capture_checkpoint(model, epoch, source=(H, W)), {'main': opt}, [scheduler], history)
         model.best_checkpoint = cp
         model.last_checkpoint = cp
-        print(f'WPDP parity epoch={epoch} CE={float(loss.detach()):.6f} validation_diagnostic={vf:.4f}', flush=True)
+        print(f'WPDP epoch={epoch} CE={float(loss.detach()):.6f} validation_diagnostic={vf:.4f}', flush=True)
     raise RuntimeError('ES controller did not terminate at the configured boundary')
 
 
@@ -114,9 +113,8 @@ def train_cross(model, X_s, y_s, train_idx, val_idx, X_t, view_s, view_t, cfg, d
     }
     sched = [torch.optim.lr_scheduler.MultiStepLR(o, cfg['milestones'], cfg['gamma']) for o in opts.values()]
     history = []
-    start = 0
     graphs = {'source': (None, None), 'target': (None, None)}
-    for epoch in range(start, cfg['max_epoch']):
+    for epoch in range(cfg['max_epoch']):
         if epoch % 5 == 0:
             for (role, v) in [('source', view_s), ('target', view_t)]:
                 rt = runtimes[role]
@@ -124,8 +122,7 @@ def train_cross(model, X_s, y_s, train_idx, val_idx, X_t, view_s, view_t, cfg, d
                     epoch,
                     [v.get(k) for k in ('X_origin', 'X_metric', 'X_vector')],
                     v['E'],
-                    cfg,
-                    graphs[role][0]
+                    cfg
                 )
         for role in graphs:
             runtimes[role].self_supervised_step(epoch)
@@ -145,7 +142,7 @@ def train_cross(model, X_s, y_s, train_idx, val_idx, X_t, view_s, view_t, cfg, d
         for s in sched:
             s.step()
         model.stage = 'neural_complete' if epoch == cfg['max_epoch'] - 1 else 'neural_training'
-        cp = on_epoch(model, capture_checkpoint(model, epoch, vf, **graphs), opts, sched, history)
+        cp = on_epoch(model, capture_checkpoint(model, epoch, **graphs), opts, sched, history)
         model.best_checkpoint = cp
         model.last_checkpoint = cp
     raise RuntimeError('ES controller did not terminate at the configured boundary')

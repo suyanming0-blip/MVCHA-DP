@@ -25,12 +25,11 @@ def metric(value, low, high):
 
 @dataclass(frozen=True)
 class Scope:
-    protocol: str
     scenario: str
     family: str
     task_id: str
     metric_source: str
-    seed: int = 321
+    seed: int
 
     def validate(self):
         require(self.scenario in ('WPDP', 'CVDP', 'CPDP') and self.family in FAMILIES, 'Invalid scenario/family')
@@ -38,8 +37,7 @@ class Scope:
             self.metric_source == ('inner_validation' if self.scenario == 'WPDP' else 'source_validation'),
             'Invalid selector label role'
         )
-        allowed = range(321, 341) if self.protocol == 'MVCHA_DP_REPEATED20' else (321,)
-        require(type(self.seed) is int and self.seed in allowed, 'Seed outside the selected protocol')
+        require(type(self.seed) is int and self.seed in range(321, 341), 'Seed must be in 321..340')
 
 
 @dataclass(frozen=True)

@@ -5,19 +5,6 @@ from sklearn.metrics.pairwise import pairwise_distances
 from mvcha_dp.graph.numeric import _to_numpy_float32
 
 
-def validate_kappa(kappa):
-    if not isinstance(kappa, (tuple, list)):
-        raise ValueError(f'kappa must be a tuple or list, got {type(kappa).__name__}.')
-    if len(kappa) != 3:
-        raise ValueError(f'kappa must contain exactly three integers, got length {len(kappa)}.')
-    if not all((isinstance(x, int) for x in kappa)):
-        raise ValueError(f'all kappa values must be integers, got {kappa}.')
-    if not all((x > 0 for x in kappa)):
-        raise ValueError(f'all kappa values must be positive, got {kappa}.')
-    if not kappa[0] < kappa[1] < kappa[2]:
-        raise ValueError(f'kappa must be strictly increasing, e.g., (4, 5, 6), got {kappa}.')
-
-
 def compute_structural_similarity(X_struct):
     cached = cached_similarity(X_struct)
     if cached is not None:
@@ -40,22 +27,15 @@ def compute_importance_similarity(importance_scores):
     return sim_imp.astype(np.float32)
 
 
-def compute_comprehensive_similarity(X_struct, importance_scores=None, alpha=0.7, use_node_importance=True):
+def compute_comprehensive_similarity(X_struct, importance_scores, alpha=0.7):
     sim_struct = compute_structural_similarity(X_struct)
-    if use_node_importance and importance_scores is not None:
-        sim_imp = compute_importance_similarity(importance_scores)
-        sim = alpha * sim_struct + (1.0 - alpha) * sim_imp
-    else:
-        sim = sim_struct
+    sim_imp = compute_importance_similarity(importance_scores)
+    sim = alpha * sim_struct + (1.0 - alpha) * sim_imp
     return sim.astype(np.float32)
 
 
 def high_similarity_tail_fraction(cfg):
-    new = cfg.get('high_similarity_tail_fraction')
-    old = cfg.get('dynamic_k_quantile', cfg.get('q'))
-    if new is not None and old is not None and (float(new) != float(old)):
-        raise ValueError('Conflicting tail fraction values')
-    return float(new if new is not None else old if old is not None else 0.2)
+    return float(cfg['high_similarity_tail_fraction'])
 
 
 def estimate_global_high_similarity_threshold(sim, q=0.2):
@@ -70,40 +50,29 @@ def estimate_global_high_similarity_threshold(sim, q=0.2):
     return float(eta)
 
 
-def choose_dynamic_k(sim_row, eta, tau1=0.2, tau2=0.5, k_values=None, kappa=None):
-    if kappa is not None:
-        k_vals = kappa
-    elif k_values is not None:
-        k_vals = k_values
-    else:
-        k_vals = (4, 5, 6)
+def choose_dynamic_k(sim_row, eta, tau1=0.2, tau2=0.5, kappa=(4, 5, 6)):
     sim_row = _to_numpy_float32(sim_row).reshape(-1)
     valid = sim_row[sim_row >= 0.0]
     if valid.size == 0:
-        return int(k_vals[0])
+        return int(kappa[0])
     high_ratio = float(np.mean(valid >= eta))
     if high_ratio >= tau2:
-        return int(k_vals[2])
+        return int(kappa[2])
     if high_ratio >= tau1:
-        return int(k_vals[1])
-    return int(k_vals[0])
+        return int(kappa[1])
+    return int(kappa[0])
 
 
-def build_view_hyperedges(X_view, importance_scores, cfg, return_similarity=False):
+def build_view_hyperedges(X_view, importance_scores, cfg):
     alpha = cfg.get('alpha', 0.7)
     tau1 = cfg.get('tau1', 0.2)
     tau2 = cfg.get('tau2', 0.5)
-    k_values = cfg.get('kappa', cfg.get('k_values', (4, 5, 6)))
+    kappa = cfg['kappa']
     q = high_similarity_tail_fraction(cfg)
-    weight_mode = cfg.get('weight_mode', 'unit')
-    use_node_importance = cfg.get('use_node_importance', True)
-    use_dynamic_k = cfg.get('use_dynamic_k', True)
-    fixed_k = cfg.get('fixed_k', 5)
     sim = compute_comprehensive_similarity(
         X_view,
         importance_scores=importance_scores,
-        alpha=alpha,
-        use_node_importance=use_node_importance
+        alpha=alpha
     )
     eta = estimate_global_high_similarity_threshold(sim, q=q) if len(sim) > 1 else None
     hyperedges = []
@@ -116,24 +85,12 @@ def build_view_hyperedges(X_view, importance_scores, cfg, return_similarity=Fals
             continue
         sim_i = sim[i].copy()
         sim_i[i] = -1.0
-        if use_dynamic_k:
-            k_i = choose_dynamic_k(sim_i, eta=eta, tau1=tau1, tau2=tau2, k_values=k_values)
-        else:
-            k_i = int(fixed_k)
+        k_i = choose_dynamic_k(sim_i, eta=eta, tau1=tau1, tau2=tau2, kappa=kappa)
         other = np.arange(n)[np.arange(n) != i]
         nbr_idx = other[np.argsort(-sim_i[other], kind='stable')[:min(k_i, n - 1)]]
         edge = sorted(set([i] + nbr_idx.tolist()))
         hyperedges.append(edge)
-        if weight_mode == 'unit':
-            w = 1.0
-        elif weight_mode == 'mean_similarity':
-            sub_sim = sim[np.ix_(edge, edge)]
-            w = float(sub_sim.mean())
-        else:
-            raise ValueError(f'Unsupported weight_mode: {weight_mode}')
-        weights.append(w)
-    if return_similarity:
-        return (hyperedges, weights, sim)
+        weights.append(1.0)
     return (hyperedges, weights)
 
 
@@ -145,19 +102,12 @@ def fuse_multi_view_hyperedges(view_hyperedges, view_weights):
     return (all_edges, all_weights)
 
 
-def build_mvcha_hypergraph(view_features, X_concat, E, cfg=None, device=None, precomputed_importance=None, dependency_template=None):
-    if cfg is None:
-        cfg = {}
-    from mvcha_dp.protocol.contract import is_parity
-    parity = is_parity(cfg)
+def build_mvcha_hypergraph(view_features, X_concat, E, cfg, precomputed_importance=None, dependency_template=None):
     if not isinstance(view_features, dict) or set(view_features) != {'TSM', 'CNM', 'NEM'}:
         raise ValueError('Expected named TSM, CNM and NEM views')
-    if isinstance(view_features, dict):
-        view_features = [view_features[k] for k in ('TSM', 'CNM', 'NEM')]
+    view_features = [view_features[k] for k in ('TSM', 'CNM', 'NEM')]
     X_concat = _to_numpy_float32(X_concat)
     num_nodes = X_concat.shape[0]
-    if len(view_features) != 3:
-        raise ValueError('Expected three feature views')
     if precomputed_importance is not None:
         if torch.is_tensor(precomputed_importance) and precomputed_importance.requires_grad:
             raise ValueError('Graph importance must be detached before injection')
@@ -182,7 +132,6 @@ def build_mvcha_hypergraph(view_features, X_concat, E, cfg=None, device=None, pr
         view_hyperedges.append(edges)
         view_weights.append(weights)
     (all_edges, all_weights) = fuse_multi_view_hyperedges(view_hyperedges, view_weights)
-    fusion = None
     from mvcha_dp.graph.fusion import DependencyTemplate
     template = dependency_template if dependency_template is not None else DependencyTemplate(num_nodes, E)
     (H, W, fusion) = template.fuse(view_names, view_hyperedges)

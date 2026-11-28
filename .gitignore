@@ -4,7 +4,6 @@ __pycache__/
 .idea/
 .vscode/
 .DS_Store
-numeric_package/
 results/
 runs/
 *.pt

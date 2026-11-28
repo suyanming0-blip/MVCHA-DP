@@ -56,10 +56,3 @@ def fit_final_lr(latent, labels, train_ids):
         parameters=clf.get_params()
     )
     return (clf, info)
-
-
-def predict_lr(clf, latent):
-    if clf is None:
-        raise SplitClassInvalid('SPLIT_CLASS_INVALID: no fitted LR artifact')
-    x = np.asarray(latent)
-    return (clf.predict_proba(x)[:, 1], clf.predict(x))

@@ -6,7 +6,7 @@ from mvcha_dp.data.package import NativeLabelAccess
 
 class ProtocolTests(unittest.TestCase):
     def scope(self):
-        return Scope('MVCHA_DP_V2_2_REVIEW', 'WPDP', 'Promise', 'test', 'inner_validation')
+        return Scope('WPDP', 'Promise', 'test', 'inner_validation', seed=321)
 
     def test_auc_window_retains_secondary_winner(self):
         s = self.scope()
